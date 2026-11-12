@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>勤務スケジュール</title>
+<style>
+/* White-dominant palette with navy accent and soft grey, kept light in every viewer theme by request */
+:root{
+  --bg:#ffffff; --surface:#f6f7f9; --surface2:#eef0f4; --line:#e3e6ec; --ink:#1c2430; --muted:#6b7482;
+  --navy:#1f3a68; --navy2:#2e4f86; --navy-soft:#ebf0f7; --navy-ink:#ffffff;
+  --warn:#b4483c; --warn-soft:#faeeec; --ok:#3d7a64; --ok-soft:#e9f3ef; --sat:#3f5f95;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="dark"]{color-scheme:light}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:#ffffff}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto;padding:22px 20px 72px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;justify-content:space-between;padding-bottom:14px;border-bottom:2px solid var(--navy)}
+.title{font-size:26px;font-weight:700;color:var(--navy);margin:0;letter-spacing:.02em}
+.title-input{font-size:22px;font-weight:700;color:var(--navy);border:1px dashed var(--line);background:transparent;padding:2px 8px;border-radius:6px;width:min(420px,100%)}
+.monthnav{display:flex;align-items:center;gap:6px}
+.monthnav select{font-size:20px;font-weight:700;color:var(--ink);border:0;background:transparent;padding:4px 6px;border-radius:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+.monthnav select:hover{background:var(--surface)}
+.iconbtn{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--bg);font-size:18px;line-height:1;display:grid;place-items:center;color:var(--navy)}
+.iconbtn:hover:not(:disabled){background:var(--navy-soft)}
+.langsel{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.langsel select{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:13px;color:var(--ink)}
+.lockbtn{display:inline-flex;align-items:center;gap:6px}
+.lockbtn svg{width:14px;height:14px}
+.sheet label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.sheet input.field{width:100%}
+.sheet .err{color:var(--warn);font-size:13px;min-height:1.2em;margin:0}
+.sheet p.hint{margin:0}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.admin-foot{flex-wrap:wrap;justify-content:space-between!important}
+#print{display:none}
+@media print{
+  :root{padding:0}
+  html,body{background:#fff}
+  #app,#layer,.toast{display:none!important}
+  #print{display:block}
+}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 0 10px}
+.who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.who label{font-size:13px;color:var(--muted)}
+select.field,input.field{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.mine-count{font-size:13px;color:var(--navy);background:var(--navy-soft);padding:4px 10px;border-radius:999px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;color:var(--ink)}
+.btn:hover:not(:disabled){background:var(--surface)}
+.btn.primary{background:var(--navy);color:var(--navy-ink);border-color:var(--navy)}
+.btn.primary:hover:not(:disabled){background:var(--navy2)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn.danger{color:var(--warn)}
+.switch{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.switch input{accent-color:var(--navy)}
+.notice{padding:10px 14px;border-radius:8px;background:var(--surface);color:var(--muted);font-size:13px;margin-bottom:12px}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+
+.stats{display:flex;gap:28px;flex-wrap:wrap;padding:2px 0 14px;font-size:13px;color:var(--muted)}
+.stats b{font-size:20px;color:var(--ink);font-weight:700;margin-right:4px;font-variant-numeric:tabular-nums}
+.stats .open b{color:var(--warn)}
+.stats .done b{color:var(--ok)}
+
+/* admin */
+details.admin{border:1px solid var(--line);border-radius:10px;margin-bottom:16px;background:var(--surface)}
+details.admin>summary{padding:12px 16px;cursor:pointer;font-weight:500;color:var(--navy)}
+.admin-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr);gap:24px;padding:4px 16px 18px}
+.admin-body h3{font-size:14px;margin:0 0 10px;color:var(--navy)}
+.list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.lrow{display:flex;align-items:center;gap:6px}
+.lrow input[type=text]{flex:1;min-width:0;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.lrow input[type=number]{width:4.2em;padding:6px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.lrow .unit{font-size:12px;color:var(--muted);white-space:nowrap}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.sitebar{width:4px;height:22px;border-radius:2px;background:var(--navy);flex:none}
+.xbtn{border:0;background:transparent;color:var(--muted);width:26px;height:26px;border-radius:6px;font-size:16px;line-height:1;flex:none}
+.xbtn:hover{background:var(--warn-soft);color:var(--warn)}
+.colhead{display:flex;gap:6px;font-size:11px;color:var(--muted);padding:0 32px 0 18px;justify-content:flex-end}
+.pform{display:flex;flex-direction:column;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px}
+.prow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.prow>span{color:var(--muted);min-width:4.5em}
+.prow input[type=date],.prow input[type=number],.prow select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.prow input[type=number]{width:4.5em}
+.wdpick{display:flex;flex-wrap:wrap;gap:4px}
+.wdpick label{display:flex;align-items:center;justify-content:center;min-width:34px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:13px;cursor:pointer;user-select:none}
+.wdpick input{position:absolute;opacity:0;pointer-events:none}
+.wdpick label:has(input:checked){background:var(--navy);border-color:var(--navy);color:var(--navy-ink)}
+.wdpick label:has(input:focus-visible){outline:2px solid var(--navy);outline-offset:2px}
+.plist{display:flex;flex-direction:column;gap:6px}
+.pitem{display:flex;gap:8px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--navy);border-radius:6px;padding:8px 8px 8px 10px;font-size:13px}
+.pitem .ptxt{flex:1}
+.pitem .ptxt b{color:var(--navy);font-weight:700}
+.pitem .pmeta{color:var(--muted);font-size:12px}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+.admin-foot{grid-column:1/-1;display:flex;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+
+/* calendar */
+.cal-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.cal{display:grid;grid-template-columns:52px repeat(7,minmax(132px,1fr));min-width:980px}
+.hcell{background:var(--surface);font-size:13px;font-weight:500;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+.hcell.sat{color:var(--sat)}.hcell.sun{color:var(--warn)}
+.wk{display:flex;justify-content:center;padding-top:12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface)}
+.day{position:relative;border-bottom:1px solid var(--line);border-left:1px solid var(--line);padding:8px 8px 10px;min-height:118px;display:flex;flex-direction:column;gap:7px;background:var(--bg)}
+.day.out,.day.off{background:var(--surface)}
+.day.today{box-shadow:inset 0 0 0 2px var(--navy)}
+.dhead{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.dnum{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.dnum small{font-size:12px;font-weight:400;color:var(--muted);margin-left:4px;display:none}
+.day.sun .dnum,.day.hol .dnum{color:var(--warn)} .day.sat .dnum{color:var(--sat)}
+.hol-name{font-size:11px;color:var(--warn)}
+.fill{font-size:12px;padding:1px 8px;border-radius:999px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fill.need{background:var(--warn-soft);color:var(--warn)}
+.fill.ok{background:var(--ok-soft);color:var(--ok)}
+.offlabel{font-size:12px;color:var(--muted)}
+.site{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--navy);padding-left:7px}
+.site.gone{border-left-color:var(--muted)}
+.site-h{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:12px}
+.site-name{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-n{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.site-n.need{color:var(--warn)}
+.stepper{display:flex;align-items:center;gap:2px;font-size:12px;flex:none}
+.stepper button{width:22px;height:22px;border-radius:5px;border:1px solid var(--line);background:var(--bg);line-height:1;padding:0;color:var(--navy)}
+.stepper button:hover{background:var(--navy-soft)}
+.stepper output{min-width:1.6em;text-align:center;font-weight:500}
+.chip{--c:#6f7a8a;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:3px 3px 3px 8px;border-radius:5px;
+  background:var(--surface);background:color-mix(in srgb,var(--c) 14%,#ffffff);border-left:3px solid var(--c);color:var(--ink);font-size:13px;font-weight:500;line-height:1.35}
+.chip.me{box-shadow:inset 0 0 0 1.5px var(--c)}
+.chip.over{opacity:.55;text-decoration:line-through}
+.chip .x{border:0;background:transparent;color:var(--muted);width:20px;height:20px;border-radius:4px;font-size:14px;line-height:1;padding:0;flex:none}
+.chip .x:hover{background:rgba(31,58,104,.1);color:var(--ink)}
+.slot-select{width:100%;padding:4px 6px;border:1px dashed #b9c0cb;border-radius:5px;background:var(--bg);font-size:12.5px;color:var(--muted)}
+.slot-select:hover{border-color:var(--navy);color:var(--navy)}
+.slot-empty{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:5px;padding:3px 8px}
+.addsite{width:100%;padding:3px 6px;border:1px solid transparent;border-radius:5px;background:transparent;font-size:12px;color:var(--muted)}
+.addsite:hover{border-color:var(--line);color:var(--navy)}
+.cal.mymode .day:not(.has-me):not(.out){opacity:.45}
+
+/* summary */
+.sum{margin-top:30px}
+.sum h2{font-size:17px;color:var(--navy);margin:0 0 4px}
+.sum .sub{font-size:13px;color:var(--muted);margin:0 0 10px}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:center;font-weight:500;color:var(--muted);font-size:12px;background:var(--surface);padding:8px 8px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:inherit;z-index:1}
+thead th:first-child{background:var(--surface)}
+tbody tr{background:var(--bg)}
+td{padding:9px 8px;border-top:1px solid var(--line);text-align:center;font-variant-numeric:tabular-nums}
+td.z{color:#c3c8d0}
+td.over{color:var(--warn);font-weight:700}
+th.cur,td.cur{background:var(--navy-soft)}
+th.cur{color:var(--navy);font-weight:700}
+td.tot,th.tot{font-weight:700;border-left:1px solid var(--line)}
+tr.mine td:first-child{font-weight:700}
+tr.meta td{color:var(--muted);font-size:12.5px;background:var(--surface)}
+tr.meta td.open{color:var(--warn)}
+.namecell{display:flex;align-items:center;gap:8px;white-space:nowrap;padding-right:8px}
+.namecell .cap{font-size:11px;color:var(--muted);font-weight:400}
+.daylist{margin-top:14px}
+.daylist table td{text-align:left}
+.daylist td.n{width:4em;text-align:center;font-weight:700}
+.daylist td.dates{color:var(--muted);font-size:13px}
+
+/* modal + toast */
+.modal{position:fixed;inset:0;background:rgba(20,30,50,.35);display:grid;place-items:center;padding:20px;z-index:50}
+.sheet{background:var(--bg);border-radius:12px;max-width:600px;width:100%;padding:18px;display:flex;flex-direction:column;gap:12px;max-height:90vh;box-shadow:0 20px 50px rgba(20,30,50,.18)}
+.sheet h3{margin:0;font-size:16px;color:var(--navy)}
+.sheet textarea{width:100%;min-height:320px;flex:1;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink);resize:vertical}
+.sheet .row{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:60;max-width:90vw}
+
+@media (max-width:1000px){.admin-body{grid-template-columns:1fr 1fr}.admin-body .pcol{grid-column:1/-1}}
+@media (max-width:760px){
+  .wrap{padding:14px 12px 56px}
+  .title{font-size:21px}
+  .monthnav select{font-size:17px}
+  .admin-body{grid-template-columns:1fr}
+  .cal-scroll{border:0;border-radius:0;overflow:visible}
+  .cal{display:block;min-width:0}
+  .hcell{display:none}
+  .wk{display:block;background:transparent;border:0;padding:16px 2px 6px;font-weight:700;color:var(--navy);font-size:14px}
+  .day{border:1px solid var(--line);border-radius:8px;margin-bottom:6px;min-height:0;display:grid;grid-template-columns:72px 1fr;gap:6px 10px;align-items:start}
+  .day.out{display:none}
+  .day .dhead{grid-row:span 6;flex-direction:column;align-items:flex-start;gap:3px}
+  .dnum small{display:inline}
+  .day>*:not(.dhead){grid-column:2}
+}
+</style>
+</head>
+<body>
+<div role="note" style="max-width:1320px;margin:12px auto 0;padding:12px 16px;background:#ebf0f7;border-left:4px solid #1f3a68;color:#1f3a68;font:13px/1.55 system-ui,sans-serif">
+<strong>ローカル編集 / Edit lokal</strong> — Perubahan hanya tersimpan di browser/perangkat ini, bukan di Project Sources atau browser anggota lain. 編集内容はこのブラウザにのみ保存されます。最新版を共有するには、管理者が JSON をエクスポートし、承認後に Project Sources を更新してください。
+<button onclick="window.shiftManual.resetToSeed()" style="margin-left:12px;border:1px solid #bccbe0;border-radius:5px;padding:3px 9px;background:white;cursor:pointer">Reset data awal / 初期データに戻す</button>
+</div>
+<div class="wrap" id="app"></div>
+<div id="layer"></div>
+<div id="print"></div>
+<script>
+/* Standalone manual file adapter. No external database, hosting or API. */
+(function(){
+  'use strict';
+  const SEED={"app":"shift-calendar","version":1,"exportedAt":"2026-11-12T00:01:48.390Z","settings":{"title":"勤務スケジュール","sites":[{"id":"smwbgfjw5hg9","name":"BRC"},{"id":"smwbgfwxp6nc","name":"MIF"}],"workers":[{"id":"w1","name":"Nana","color":"#3f5f95","max":0},{"id":"w2","name":"Shifa","color":"#c08a52","max":0},{"id":"w3","name":"Daya","color":"#4f8f7f","max":0},{"id":"wmwbg9fa8","name":"Roberto","color":"#86699f","max":0},{"id":"wmwbgh5736pr","name":"Irfan","color":"#b8687a","max":0},{"id":"wmwbgh8xksfc","name":"Fauzan","color":"#8f8650","max":0}],"patterns":[]},"days":{"2026-12-01":{"date":"2026-12-01","month":"2026-12","ov":{"smwbgfwxp6nc":1}},"2026-12-02":{"date":"2026-12-02","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-03":{"date":"2026-12-03","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-04":{"date":"2026-12-04","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-07":{"date":"2026-12-07","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-08":{"date":"2026-12-08","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-09":{"date":"2026-12-09","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-10":{"date":"2026-12-10","month":"2026-12","ov":{"smwbgfjw5hg9":2,"smwbgfwxp6nc":1}},"2026-12-11":{"date":"2026-12-11","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-12":{"date":"2026-12-12","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-14":{"date":"2026-12-14","month":"2026-12","ov":{"smwbgfwxp6nc":2}},"2026-12-15":{"date":"2026-12-15","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-16":{"date":"2026-12-16","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-17":{"date":"2026-12-17","month":"2026-12","ov":{"smwbgfjw5hg9":2,"smwbgfwxp6nc":2}},"2026-12-19":{"date":"2026-12-19","month":"2026-12","ov":{"smwbgfjw5hg9":2}},"2026-12-21":{"date":"2026-12-21","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-22":{"date":"2026-12-22","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":2}},"2026-12-23":{"date":"2026-12-23","month":"2026-12","ov":{"smwbgfjw5hg9":1}},"2026-12-24":{"date":"2026-12-24","month":"2026-12","ov":{"smwbgfjw5hg9":1,"smwbgfwxp6nc":1}},"2026-12-28":{"date":"2026-12-28","month":"2026-12","ov":{"smwbgfwxp6nc":2}},"2026-12-29":{"date":"2026-12-29","month":"2026-12","ov":{"smwbgfwxp6nc":2}},"2026-12-31":{"date":"2026-12-31","month":"2026-12","ov":{"smwbgfwxp6nc":1}}},"signups":{"2026-11-06_w1":{"at":1794361079397,"date":"2026-11-06","month":"2026-11","worker":"w1"},"2026-11-06_wmwbg9fa8":{"at":1794361090989,"date":"2026-11-06","month":"2026-11","worker":"wmwbg9fa8"},"2026-12-01_wmwbg9fa8":{"at":1794362485528,"date":"2026-12-01","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-02_w2":{"at":1794362200287,"date":"2026-12-02","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-03_w2":{"at":1794362206183,"date":"2026-12-03","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-03_wmwbg9fa8":{"at":1794362494304,"date":"2026-12-03","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-03_wmwbgh5736pr":{"at":1794362495809,"date":"2026-12-03","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-04_w1":{"at":1794362209976,"date":"2026-12-04","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-07_w3":{"at":1794362219512,"date":"2026-12-07","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-07_wmwbgh5736pr":{"at":1794362509833,"date":"2026-12-07","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-07_wmwbgh8xksfc":{"at":1794362506801,"date":"2026-12-07","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh8xksfc"},"2026-12-08_w3":{"at":1794362222792,"date":"2026-12-08","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-08_wmwbg9fa8":{"at":1794362516073,"date":"2026-12-08","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-08_wmwbgh5736pr":{"at":1794362518481,"date":"2026-12-08","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-09_w2":{"at":1794362228456,"date":"2026-12-09","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-10_w2":{"at":1794362236712,"date":"2026-12-10","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-10_w3":{"at":1794362239736,"date":"2026-12-10","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-10_wmwbg9fa8":{"at":1794362527825,"date":"2026-12-10","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-11_w1":{"at":1794362246416,"date":"2026-12-11","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-12_w1":{"at":1794362257033,"date":"2026-12-12","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-14_wmwbg9fa8":{"at":1794362537873,"date":"2026-12-14","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-14_wmwbgh5736pr":{"at":1794362540497,"date":"2026-12-14","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-15_w3":{"at":1794362265057,"date":"2026-12-15","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-15_wmwbg9fa8":{"at":1794362546505,"date":"2026-12-15","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-15_wmwbgh5736pr":{"at":1794362550161,"date":"2026-12-15","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-16_w2":{"at":1794362269433,"date":"2026-12-16","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-17_w1":{"at":1794362280218,"date":"2026-12-17","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-17_w2":{"at":1794362275914,"date":"2026-12-17","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-17_wmwbgh5736pr":{"at":1794362557426,"date":"2026-12-17","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-17_wmwbgh8xksfc":{"at":1794362555146,"date":"2026-12-17","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh8xksfc"},"2026-12-19_w1":{"at":1794362290441,"date":"2026-12-19","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-19_w3":{"at":1794362295498,"date":"2026-12-19","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-21_w3":{"at":1794362301770,"date":"2026-12-21","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-21_wmwbg9fa8":{"at":1794362563993,"date":"2026-12-21","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-21_wmwbgh5736pr":{"at":1794362569122,"date":"2026-12-21","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-22_w3":{"at":1794362306018,"date":"2026-12-22","month":"2026-12","site":"smwbgfjw5hg9","worker":"w3"},"2026-12-22_wmwbg9fa8":{"at":1794362573922,"date":"2026-12-22","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-22_wmwbgh5736pr":{"at":1794362578922,"date":"2026-12-22","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-23_w2":{"at":1794362310906,"date":"2026-12-23","month":"2026-12","site":"smwbgfjw5hg9","worker":"w2"},"2026-12-24_w1":{"at":1794362315395,"date":"2026-12-24","month":"2026-12","site":"smwbgfjw5hg9","worker":"w1"},"2026-12-24_wmwbgh5736pr":{"at":1794362585835,"date":"2026-12-24","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"},"2026-12-28_wmwbg9fa8":{"at":1794362600651,"date":"2026-12-28","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-28_wmwbgh8xksfc":{"at":1794362593738,"date":"2026-12-28","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh8xksfc"},"2026-12-29_wmwbg9fa8":{"at":1794362608059,"date":"2026-12-29","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbg9fa8"},"2026-12-29_wmwbgh8xksfc":{"at":1794362622268,"date":"2026-12-29","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh8xksfc"},"2026-12-31_wmwbgh5736pr":{"at":1794362615171,"date":"2026-12-31","month":"2026-12","site":"smwbgfwxp6nc","worker":"wmwbgh5736pr"}}};
+  const KEY='shift-calendar-manual-v1';
+  function clone(x){return JSON.parse(JSON.stringify(x));}
+  let stored=null;
+  try{stored=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+  let state=stored&&stored.app==='shift-calendar'&&stored.settings&&stored.days&&stored.signups?stored:clone(SEED);
+  const observers={};
+  const payload=(path)=>{
+    if(path==='settings/main')return state.settings;
+    if(path==='lock/admin')return state._localLock||null;
+    const [type,id]=path.split('/');return state[type]&&state[type][id]||null;
+  };
+  function deliver(path,cb){const value=payload(path);cb({exists:!!value,data:()=>clone(value)});}
+  function emit(path){(observers[path]||[]).forEach(cb=>deliver(path,cb));}
+  function emitCollection(type){(observers['collection/'+type]||[]).forEach(cb=>cb({docs:Object.entries(state[type]||{}).map(([id,v])=>({id,data:()=>clone(v)}))}));}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){console.warn('Local save failed',e);}}
+  const db={
+    doc(path){return{
+      async get(){let d=payload(path);return{exists:!!d,data:()=>clone(d)}},
+      async set(v){const [type,id]=path.split('/');if(path==='settings/main')state.settings=clone(v);else if(path==='lock/admin')state._localLock=clone(v);else state[type][id]=clone(v);persist();emit(path);if(type==='days'||type==='signups')emitCollection(type);},
+      async delete(){const [type,id]=path.split('/');if(state[type])delete state[type][id];persist();emit(path);if(type==='days'||type==='signups')emitCollection(type);},
+      onSnapshot(cb){(observers[path]??=[]).push(cb);queueMicrotask(()=>deliver(path,cb));return()=>{};}
+    }},
+    collection(type){return{onSnapshot(cb){(observers['collection/'+type]??=[]).push(cb);queueMicrotask(()=>emitCollection(type));return()=>{};}}}
+  };
+  const downloads={async save({filename,data}){const blob=new Blob([data],{type:filename.endsWith('.json')?'application/json':'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}};
+  window.claude={use:async(type)=>{
+    if(type==='db')return db;
+    if(type==='user')return{canEdit:async()=>true,can:async()=>true};
+    if(type==='downloads')return downloads;
+    throw new Error('Unknown local capability');
+  }};
+  window.shiftManual={resetToSeed(){if(!confirm('Reset all local changes? / ローカルの変更をリセットしますか？'))return;state=clone(SEED);persist();location.reload()},snapshot(){return clone(state)}};
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const pad=n=>String(n).padStart(2,"0");
+const START_Y=2026,START_M=12,END_Y=2027,END_M=12;
+const MONTHS=(()=>{const a=[];let y=START_Y,m=START_M;for(;;){a.push(y+"-"+pad(m));if(y===END_Y&&m===END_M)break;m++;if(m>12){m=1;y++}}return a})();
+const RANGE_FROM=MONTHS[0]+"-01",RANGE_TO=MONTHS[MONTHS.length-1]+"-31";
+const HOL={"2027-01-01":"元日","2027-01-11":"成人の日","2027-02-11":"建国記念の日","2027-02-23":"天皇誕生日","2027-03-21":"春分の日","2027-03-22":"振替休日","2027-04-29":"昭和の日","2027-05-03":"憲法記念日","2027-05-04":"みどりの日","2027-05-05":"こどもの日","2027-07-19":"海の日","2027-08-11":"山の日","2027-09-20":"敬老の日","2027-09-23":"秋分の日","2027-10-11":"スポーツの日","2027-11-03":"文化の日","2027-11-23":"勤労感謝の日"};
+const PALETTE=["#3f5f95","#c08a52","#4f8f7f","#86699f","#b8687a","#8f8650","#5f8fb5","#7a8494"];
+const JWD=["月","火","水","木","金","土","日"];
+const T={
+ ja:{title:"勤務スケジュール",me:"あなたの名前",choose:"選んでください",pick:"＋ 名前を選ぶ",adminView:"管理者表示",myOnly:"自分の日だけ",copyText:"テキストで出力",
+  admin:"管理者メニュー（現場・作業者・繰り返し）",sites:"勤務場所",sitePh:"場所の名前（例：A工場）",workers:"作業者",namePh:"名前（例：シファ）",add:"追加",
+  maxCol:"上限/月",times:"回",pattern:"繰り返しパターン",site:"場所",days:"曜日",people:"名",period:"期間",skipHol:"祝日は休み",addPattern:"パターンを追加",
+  noPattern:"まだパターンがありません。",patternHint:"例：毎週 月・火・木 にA工場で2名。日ごとの変更（＋/−）はパターンより優先されます。",
+  clear:"この月の変更と出勤をリセット",off:"休み",addSite:"＋ 場所を追加",needAll:"必要人数",filled:"確定",open:"空き",thisMonth:"今月",
+  summary:"月別の出勤回数",sumSub:"2026年12月〜2027年12月",total:"合計",need:"必要",openRow:"空き",dayList:"出勤日",
+  readOnly:"表示のみです。編集の権限がありません。",noDb:"共有データに接続できません。表示のみです。",loading:"読み込み中…",slow:"読み込みに時間がかかっています。",
+  noWorkers:"まだ作業者がいません。管理者メニューから追加してください。",noSites:"まず勤務場所を追加してください。",
+  copy:"コピー",copied:"コピーしました",close:"閉じる",all:"すべての場所",
+  confirmClear:"この月の日ごとの変更と出勤登録をすべて削除しますか？（パターンは残ります）",
+  confirmRmW:"この作業者を削除しますか？（登録済みの出勤は残ります）",confirmRmS:"この場所を削除しますか？この場所のパターンも削除されます。",
+  removed:"（削除済み）",shareHint:"作業者には「共有」でリンクを送ってください（Contributor 以上）。",saveErr:"保存できませんでした。もう一度試してください。",
+  overMax:(n,m)=>`${n}さんは今月の上限（${m}回）に達しています。`,needWd:"曜日を選んでください。",needSite:"場所を選んでください。",
+  week:n=>"第"+n+"週",month:(y,m)=>y+"年"+m+"月",mshort:(y,m)=>(m===1||y!==START_Y&&m===START_M?y+"/":"")+m+"月",wd:JWD,yours:"（自分）",
+  meCount:n=>`今月 ${n}回`,pFrom:"から",pTo:"まで",holTag:"祝日除く",
+  langLabel:"言語",adminBtn:"管理者",exitAdmin:"管理者を終了",pwTitle:"管理者パスワード",pwPh:"パスワード",unlock:"開く",cancel:"キャンセル",
+  pwNewTitle:"管理者パスワードを設定",pwNewHint:"最初に一度だけ設定します。4文字以上。",pwNew:"新しいパスワード",pwNew2:"もう一度入力",pwSet:"設定する",
+  pwWrong:"パスワードが違います。",pwMismatch:"2つのパスワードが一致しません。",pwShort:"4文字以上にしてください。",pwChange:"パスワード変更",pwChanged:"パスワードを変更しました。",pwCurrent:"今のパスワード",
+  print:"印刷",printTitle:"この月を印刷（A4横）",printNow:"今すぐ印刷",printDl:"ファイルで保存（HTML）",printHint:"印刷画面が出ないときは、ファイルを保存して開き、Ctrl+P（⌘P）で印刷してください。",
+  openN:n=>`空き${n}`,printedAt:"印刷日",monthTotal:"今月の出勤回数",
+  backup:"データのバックアップ",exportDb:"エクスポート（JSON）",importDb:"インポート",importTitle:"バックアップから復元",
+  importHint:"JSONファイルを選ぶか、内容を貼り付けてください。今のデータはすべてバックアップの内容に置き換わります（パスワードは変わりません）。",
+  restore:"復元する",confirmImport:"今のデータをすべて置き換えます。よろしいですか？",importBad:"バックアップの形式が正しくありません。",
+  importing:(a,b)=>`復元中… ${a}/${b}`,imported:"復元しました。",exported:"保存しました。",dlFail:"保存できませんでした。下の内容をコピーしてください。"},
+ id:{title:"Jadwal Kerja",me:"Nama kamu",choose:"Pilih",pick:"＋ Pilih nama",adminView:"Tampilan admin",myOnly:"Hari saya saja",copyText:"Ekspor teks",
+  admin:"Menu admin (lokasi, pekerja, pola)",sites:"Lokasi kerja",sitePh:"Nama lokasi (mis. Pabrik A)",workers:"Pekerja",namePh:"Nama (mis. シファ)",add:"Tambah",
+  maxCol:"Maks/bln",times:"x",pattern:"Pola berulang",site:"Lokasi",days:"Hari",people:" org",period:"Periode",skipHol:"Libur nasional off",addPattern:"Tambah pola",
+  noPattern:"Belum ada pola.",patternHint:"Contoh: tiap Sen, Sel, Kam di Pabrik A, 2 orang. Ubahan per hari (＋/−) lebih kuat dari pola.",
+  clear:"Reset ubahan & jadwal bulan ini",off:"Libur",addSite:"＋ Tambah lokasi",needAll:"Kebutuhan",filled:"Terisi",open:"Kosong",thisMonth:"Bulan ini",
+  summary:"Jumlah masuk per bulan",sumSub:"Desember 2026 – Desember 2027",total:"Total",need:"Butuh",openRow:"Kosong",dayList:"Tanggal masuk",
+  readOnly:"Hanya lihat. Kamu tidak punya izin edit.",noDb:"Tidak bisa terhubung ke data bersama. Hanya lihat.",loading:"Memuat…",slow:"Data lama dimuat.",
+  noWorkers:"Belum ada pekerja. Tambahkan di menu admin.",noSites:"Tambahkan lokasi kerja dulu.",
+  copy:"Salin",copied:"Sudah disalin",close:"Tutup",all:"Semua lokasi",
+  confirmClear:"Hapus semua ubahan per hari dan jadwal di bulan ini? (pola tetap ada)",
+  confirmRmW:"Hapus pekerja ini? (jadwal lama tetap tersimpan)",confirmRmS:"Hapus lokasi ini? Pola di lokasi ini juga dihapus.",
+  removed:"(dihapus)",shareHint:"Kirim link lewat Share ke pekerja (minimal Contributor).",saveErr:"Gagal menyimpan. Coba lagi.",
+  overMax:(n,m)=>`${n} sudah mencapai batas bulan ini (${m}x).`,needWd:"Pilih harinya dulu.",needSite:"Pilih lokasinya dulu.",
+  week:n=>"Minggu "+n,month:(y,m)=>["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"][m-1]+" "+y,
+  mshort:(y,m)=>["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][m-1]+(m===1||y!==START_Y&&m===START_M?" "+String(y).slice(2):""),
+  wd:["Sen","Sel","Rab","Kam","Jum","Sab","Min"],yours:"(saya)",meCount:n=>`Bulan ini ${n}x`,pFrom:"–",pTo:"",holTag:"tanpa libur nasional",
+  langLabel:"Bahasa",adminBtn:"Admin",exitAdmin:"Keluar admin",pwTitle:"Password admin",pwPh:"Password",unlock:"Buka",cancel:"Batal",
+  pwNewTitle:"Buat password admin",pwNewHint:"Cukup sekali di awal. Minimal 4 karakter.",pwNew:"Password baru",pwNew2:"Ulangi password",pwSet:"Simpan",
+  pwWrong:"Password salah.",pwMismatch:"Kedua password tidak sama.",pwShort:"Minimal 4 karakter.",pwChange:"Ganti password",pwChanged:"Password sudah diganti.",pwCurrent:"Password sekarang",
+  print:"Cetak",printTitle:"Cetak bulan ini (A4 landscape)",printNow:"Cetak sekarang",printDl:"Simpan file (HTML)",printHint:"Kalau layar cetak tidak muncul, simpan filenya, buka, lalu tekan Ctrl+P (⌘P).",
+  openN:n=>`kosong ${n}`,printedAt:"Dicetak",monthTotal:"Jumlah masuk bulan ini",
+  backup:"Backup data",exportDb:"Ekspor (JSON)",importDb:"Impor",importTitle:"Pulihkan dari backup",
+  importHint:"Pilih file JSON atau tempel isinya. Semua data sekarang akan diganti dengan isi backup (password tidak berubah).",
+  restore:"Pulihkan",confirmImport:"Semua data sekarang akan diganti. Lanjut?",importBad:"Format backup tidak valid.",
+  importing:(a,b)=>`Memulihkan… ${a}/${b}`,imported:"Data sudah dipulihkan.",exported:"File tersimpan.",dlFail:"Gagal menyimpan. Salin isi di bawah ini."}
+};
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}}
+let lang=ls("lang")==="ja"?"ja":"id";
+const t=k=>T[lang][k]!==undefined?T[lang][k]:T.ja[k];
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const okMonth=s=>MONTHS.includes(s);
+const dkey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const wdOf=date=>(new Date(date+"T00:00:00").getDay()+6)%7;
+const todayKey=dkey(new Date());
+
+let db=null,dl=null,isAdmin=false,canWrite=true,adminView=false,myOnly=false,dbMissing=false,slow=false,dbReady=false;
+let settings={title:"",sites:[],workers:[],patterns:[]};
+let days={},signups={};
+const loaded={set:false,days:false,sign:false};
+let month=(()=>{const h=location.hash.slice(1);if(okMonth(h))return h;const c=todayKey.slice(0,7);return c<MONTHS[0]?MONTHS[0]:c>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:c})();
+let me=ls("me")||"";
+let siteFilter=ls("site")||"";
+const drafts={};
+const pf={site:"",wd:[0,1,3],needed:1,from:RANGE_FROM,until:"2027-12-31",skipHol:true};
+let busy=false;
+const queues={};
+
+const wById=id=>settings.workers.find(w=>w.id===id);
+const sById=id=>settings.sites.find(s=>s.id===id);
+const wName=id=>{const w=wById(id);return w?w.name:t("removed")};
+const wColor=id=>{const w=wById(id);return w?w.color:"#9aa1ab"};
+const sName=id=>{const s=sById(id);return s?s.name:t("removed")};
+
+/* needs per site for a date: patterns first, then per-day overrides */
+function baseNeeds(date){
+  const wd=wdOf(date),out={};
+  for(const p of settings.patterns){
+    if(date<p.from||date>p.until||!p.wd.includes(wd))continue;
+    if(p.skipHol&&HOL[date])continue;
+    out[p.site]=p.needed;
+  }
+  return out;
+}
+function needs(date){
+  const out=baseNeeds(date);const ov=(days[date]&&days[date].ov)||{};
+  for(const k in ov)out[k]=ov[k];
+  for(const k in out)if(!(out[k]>0))delete out[k];
+  return out;
+}
+function byDate(){
+  const m={};
+  for(const [id,s] of Object.entries(signups)){(m[s.date]=m[s.date]||[]).push({id,...s})}
+  for(const k in m)m[k].sort((a,b)=>(a.at||0)-(b.at||0));
+  return m;
+}
+function siteOrder(ids){
+  const idx=id=>{const i=settings.sites.findIndex(s=>s.id===id);return i<0?999:i};
+  return [...ids].sort((a,b)=>idx(a)-idx(b));
+}
+function monthGrid(ym){
+  const [y,m]=ym.split("-").map(Number);
+  const first=new Date(y,m-1,1),last=new Date(y,m,0).getDate();
+  const cells=[];for(let i=0;i<(first.getDay()+6)%7;i++)cells.push(null);
+  for(let d=1;d<=last;d++)cells.push(new Date(y,m-1,d));
+  while(cells.length%7)cells.push(null);
+  const weeks=[];for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
+  return {y,m,weeks,last};
+}
+
+/* ---------- writes ---------- */
+function handleErr(e){
+  const c=e&&e.code;
+  if(c==="invalid_argument"){canWrite=false;render();toast(t("readOnly"))}
+  else if(c==="quota_exceeded")toast(e.message||t("saveErr"));
+  else toast(t("saveErr"));
+}
+function enqueue(path,fn){const p=(queues[path]||Promise.resolve()).then(fn).catch(handleErr);queues[path]=p;return p}
+function setNeed(date,site,n){
+  if(!db)return;
+  n=Math.max(0,Math.min(20,n));
+  const base=baseNeeds(date)[site]||0;
+  const ov={...((days[date]&&days[date].ov)||{})};
+  if(n===base)delete ov[site];else ov[site]=n;
+  const empty=!Object.keys(ov).length;
+  const body={date,month:date.slice(0,7),ov};
+  if(empty)delete days[date];else days[date]=body;
+  render();
+  return enqueue("days/"+date,()=>empty?db.doc("days/"+date).delete():db.doc("days/"+date).set(body));
+}
+function addSignup(date,site,wid){
+  if(!db||!wid)return;
+  const id=date+"_"+wid;if(signups[id])return;
+  const w=wById(wid);
+  if(w&&w.max>0&&!(isAdmin&&adminView)){
+    const cnt=Object.values(signups).filter(s=>s.worker===wid&&s.month===date.slice(0,7)).length;
+    if(cnt>=w.max){toast(t("overMax")(w.name,w.max));render();return}
+  }
+  const body={date,month:date.slice(0,7),site,worker:wid,at:Date.now()};
+  signups[id]=body;render();
+  return enqueue("signups/"+id,()=>db.doc("signups/"+id).set(body));
+}
+function removeSignup(id){
+  if(!db)return;delete signups[id];render();
+  return enqueue("signups/"+id,()=>db.doc("signups/"+id).delete());
+}
+function saveSettings(){
+  if(!db)return;
+  const body={title:settings.title||"",sites:settings.sites,workers:settings.workers,patterns:settings.patterns};
+  return enqueue("settings/main",()=>db.doc("settings/main").set(body));
+}
+const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+
+/* ---------- render ---------- */
+function render(){
+  const app=document.getElementById("app");
+  const a=document.activeElement;const key=a&&a.dataset?a.dataset.key:null;
+  let s0=null,s1=null;try{if(key){s0=a.selectionStart;s1=a.selectionEnd}}catch(e){}
+  const admin=isAdmin&&adminView&&canWrite&&!!db;
+  const sig=byDate();
+  const {y,m,weeks}=monthGrid(month);
+  const title=settings.title||t("title");document.title=title;
+  const mi=MONTHS.indexOf(month);
+  let h="";
+  h+=`<header class="top"><div>${admin?`<input class="title-input" data-key="title" data-act="title" value="${esc(drafts.title!==undefined?drafts.title:settings.title)}" placeholder="${esc(t("title"))}" aria-label="title">`:`<h1 class="title">${esc(title)}</h1>`}</div>
+   <div class="monthnav"><button class="iconbtn" data-act="prev" aria-label="prev"${mi<=0?" disabled":""}>‹</button>
+   <select data-act="month" aria-label="month">${MONTHS.map(k=>{const [yy,mm]=k.split("-").map(Number);return `<option value="${k}"${k===month?" selected":""}>${esc(t("month")(yy,mm))}</option>`}).join("")}</select>
+   <button class="iconbtn" data-act="next" aria-label="next"${mi>=MONTHS.length-1?" disabled":""}>›</button></div>
+   <label class="langsel">${esc(t("langLabel"))}<select data-act="lang"><option value="id"${lang==="id"?" selected":""}>Bahasa Indonesia</option><option value="ja"${lang==="ja"?" selected":""}>日本語</option></select></label></header>`;
+  const myCnt=me?Object.values(signups).filter(s=>s.worker===me&&s.month===month).length:0;
+  h+=`<div class="bar"><div class="who"><label for="me">${esc(t("me"))}</label><select class="field" id="me" data-act="me"><option value="">${esc(t("choose"))}</option>${settings.workers.map(w=>`<option value="${esc(w.id)}"${w.id===me?" selected":""}>${esc(w.name)}</option>`).join("")}</select>
+   ${me&&wById(me)?`<span class="mine-count">${esc(t("meCount")(myCnt))}${wById(me).max>0?" / "+wById(me).max:""}</span><label class="switch"><input type="checkbox" data-act="myonly"${myOnly?" checked":""}>${esc(t("myOnly"))}</label>`:""}${settings.sites.length>1?`<label for="sitef" style="margin-left:8px">${esc(t("site"))}</label><select class="field" id="sitef" data-act="sitef"><option value="">${esc(t("all"))}</option>${settings.sites.map(s=>`<option value="${esc(s.id)}"${s.id===siteFilter?" selected":""}>${esc(s.name)}</option>`).join("")}</select>`:""}</div>
+   <div class="spacer"></div>
+   <div class="tools">${!admin?`<button class="btn" data-act="print">${esc(t("print"))}</button>`:""}
+   <button class="btn" data-act="export">${esc(t("copyText"))}</button>
+   ${isAdmin&&canWrite&&db?`<button class="btn ${admin?"":"primary "}lockbtn" data-act="${admin?"lock":"unlockask"}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0${admin?"":"v2"}"/></svg>${esc(admin?t("exitAdmin"):t("adminBtn"))}</button>`:""}</div></div>`;
+  if(dbMissing)h+=`<div class="notice warn">${esc(t("noDb"))}</div>`;
+  else if(!canWrite)h+=`<div class="notice">${esc(t("readOnly"))}</div>`;
+  else if(!dbReady)h+=`<div class="notice">${esc(slow?t("slow"):t("loading"))}</div>`;
+  if(dbReady&&!settings.workers.length)h+=`<div class="notice">${esc(t("noWorkers"))}</div>`;
+
+  // month stats
+  let need=0,filled=0;
+  weeks.flat().forEach(d=>{if(!d)return;const k=dkey(d),nd=needs(k),list=sig[k]||[];
+    for(const s in nd){if(sById(siteFilter)&&s!==siteFilter)continue;need+=nd[s];filled+=Math.min(nd[s],list.filter(x=>x.site===s).length)}});
+  h+=`<div class="stats"><span><b>${need}</b>${esc(t("needAll"))}</span><span class="done"><b>${filled}</b>${esc(t("filled"))}</span><span class="open"><b>${need-filled}</b>${esc(t("open"))}</span></div>`;
+
+  if(admin)h+=adminPanel();
+
+  // calendar
+  h+=`<div class="cal-scroll"><div class="cal${myOnly&&me?" mymode":""}"><div class="hcell"></div>${t("wd").map((w,i)=>`<div class="hcell${i===5?" sat":i===6?" sun":""}">${esc(w)}</div>`).join("")}`;
+  weeks.forEach((wk,wi)=>{
+    h+=`<div class="wk">${esc(t("week")(wi+1))}</div>`;
+    wk.forEach((d,di)=>{
+      const wc=di===5?" sat":di===6?" sun":"";
+      if(!d){h+=`<div class="day out${wc}"></div>`;return}
+      h+=dayCell(dkey(d),d,di,wc,sig,admin);
+    });
+  });
+  h+=`</div></div>`;
+  h+=summary(sig);
+  app.innerHTML=h;
+  if(key){const n=app.querySelector(`[data-key="${CSS.escape(key)}"]`);if(n){n.focus();try{if(s0!=null)n.setSelectionRange(s0,s1)}catch(e){}}}
+}
+
+function dayCell(k,d,di,wc,sig,admin){
+  const nd0=needs(k),list=sig[k]||[];const sf=sById(siteFilter)?siteFilter:"";
+  const nd=sf?(nd0[sf]?{[sf]:nd0[sf]}:{}):nd0;
+  const siteIds=siteOrder(new Set([...Object.keys(nd),...list.filter(x=>!sf||x.site===sf).map(x=>x.site)]));
+  const isWork=Object.keys(nd).length>0;
+  const totalNeed=Object.values(nd).reduce((a,b)=>a+b,0);
+  const totalFill=siteIds.reduce((a,s)=>a+Math.min(nd[s]||0,list.filter(x=>x.site===s).length),0);
+  const hol=HOL[k];const hasMe=me&&list.some(x=>x.worker===me);
+  let h=`<div class="day${isWork?"":" off"}${wc}${hol?" hol":""}${k===todayKey?" today":""}${hasMe?" has-me":""}">`;
+  h+=`<div class="dhead"><span class="dnum">${d.getDate()}<small>${esc(t("wd")[di])}</small></span>${isWork?`<span class="fill ${totalFill>=totalNeed?"ok":"need"}">${totalFill}/${totalNeed}</span>`:""}</div>`;
+  if(hol)h+=`<span class="hol-name">${esc(hol)}</span>`;
+  if(!siteIds.length&&!admin)h+=`<span class="offlabel">${esc(t("off"))}</span>`;
+  const takenToday=new Set(list.map(x=>x.worker));
+  siteIds.forEach(s=>{
+    const n=nd[s]||0,here=list.filter(x=>x.site===s);
+    h+=`<div class="site${sById(s)?"":" gone"}"><div class="site-h"><span class="site-name" title="${esc(sName(s))}">${esc(sName(s))}</span>`;
+    if(admin)h+=`<span class="stepper"><button data-act="dec" data-date="${k}" data-site="${esc(s)}" aria-label="-">−</button><output>${n}</output><button data-act="inc" data-date="${k}" data-site="${esc(s)}" aria-label="+">＋</button></span>`;
+    else h+=`<span class="site-n${here.length<n?" need":""}">${Math.min(here.length,n)}/${n}</span>`;
+    h+=`</div>`;
+    here.forEach((x,i)=>{
+      const mine=x.worker===me,canRm=canWrite&&!!db&&(admin||mine);
+      h+=`<div class="chip${mine?" me":""}${i>=n?" over":""}" style="--c:${esc(wColor(x.worker))}"><span>${esc(wName(x.worker))}</span>${canRm?`<button class="x" data-act="rm" data-id="${esc(x.id)}" aria-label="remove">×</button>`:""}</div>`;
+    });
+    for(let i=here.length;i<n;i++){
+      if(canWrite&&db&&settings.workers.length){
+        const opts=settings.workers.filter(w=>!takenToday.has(w.id)).sort((a,b)=>(b.id===me)-(a.id===me));
+        h+=`<select class="slot-select" data-act="assign" data-date="${k}" data-site="${esc(s)}" aria-label="${esc(t("pick"))}"><option value="">${esc(t("pick"))}</option>${opts.map(w=>`<option value="${esc(w.id)}">${esc(w.name)}${w.id===me?" "+esc(t("yours")):""}</option>`).join("")}</select>`;
+      }else h+=`<div class="slot-empty">—</div>`;
+    }
+    h+=`</div>`;
+  });
+  if(admin){
+    const rest=settings.sites.filter(s=>!siteIds.includes(s.id));
+    if(rest.length)h+=`<select class="addsite" data-act="addsite" data-date="${k}" aria-label="${esc(t("addSite"))}"><option value="">${esc(t("addSite"))}</option>${rest.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select>`;
+    if(!siteIds.length&&!rest.length)h+=`<span class="offlabel">${esc(t("noSites"))}</span>`;
+  }
+  return h+`</div>`;
+}
+
+function adminPanel(){
+  let h=`<details class="admin"${ls("adminOpen")!=="0"?" open":""}><summary>${esc(t("admin"))}</summary><div class="admin-body">`;
+  // sites
+  h+=`<div><h3>${esc(t("sites"))}</h3><div class="list">${settings.sites.map(s=>`<div class="lrow"><span class="sitebar"></span><input type="text" data-key="sn-${esc(s.id)}" data-act="sname" data-id="${esc(s.id)}" value="${esc(drafts["sn-"+s.id]!==undefined?drafts["sn-"+s.id]:s.name)}"><button class="xbtn" data-act="srm" data-id="${esc(s.id)}" aria-label="remove">×</button></div>`).join("")}</div>
+   <div class="lrow"><input type="text" data-key="newsite" data-act="newsite" placeholder="${esc(t("sitePh"))}" value="${esc(drafts.newsite||"")}"><button class="btn small" data-act="sadd">${esc(t("add"))}</button></div></div>`;
+  // workers
+  h+=`<div><h3>${esc(t("workers"))}</h3>${settings.workers.length?`<div class="colhead">${esc(t("maxCol"))}</div>`:""}<div class="list">${settings.workers.map(w=>`<div class="lrow"><span class="dot" style="background:${esc(w.color)}"></span><input type="text" data-key="wn-${esc(w.id)}" data-act="wname" data-id="${esc(w.id)}" value="${esc(drafts["wn-"+w.id]!==undefined?drafts["wn-"+w.id]:w.name)}"><input type="number" min="0" max="31" data-key="wm-${esc(w.id)}" data-act="wmax" data-id="${esc(w.id)}" value="${w.max>0?w.max:""}" placeholder="—" aria-label="${esc(t("maxCol"))}"><span class="unit">${esc(t("times"))}</span><button class="xbtn" data-act="wrm" data-id="${esc(w.id)}" aria-label="remove">×</button></div>`).join("")}</div>
+   <div class="lrow"><input type="text" data-key="newname" data-act="newname" placeholder="${esc(t("namePh"))}" value="${esc(drafts.newname||"")}"><button class="btn small" data-act="wadd">${esc(t("add"))}</button></div>
+   <p class="hint">${esc(t("shareHint"))}</p></div>`;
+  // patterns
+  if(!pf.site||!sById(pf.site))pf.site=settings.sites[0]?settings.sites[0].id:"";
+  h+=`<div class="pcol"><h3>${esc(t("pattern"))}</h3><div class="pform">
+   <div class="prow"><span>${esc(t("site"))}</span><select data-act="pf-site">${settings.sites.map(s=>`<option value="${esc(s.id)}"${s.id===pf.site?" selected":""}>${esc(s.name)}</option>`).join("")||`<option value="">—</option>`}</select>
+    <input type="number" min="1" max="20" data-key="pf-need" data-act="pf-need" value="${pf.needed}" aria-label="${esc(t("people"))}"><span style="min-width:0">${esc(t("people"))}</span></div>
+   <div class="prow"><span>${esc(t("days"))}</span><div class="wdpick">${t("wd").map((w,i)=>`<label><input type="checkbox" data-act="pf-wd" data-i="${i}"${pf.wd.includes(i)?" checked":""}>${esc(w)}</label>`).join("")}</div></div>
+   <div class="prow"><span>${esc(t("period"))}</span><input type="date" data-act="pf-from" min="${RANGE_FROM}" max="2027-12-31" value="${pf.from}"> 〜 <input type="date" data-act="pf-until" min="${RANGE_FROM}" max="2027-12-31" value="${pf.until}"></div>
+   <div class="prow"><span></span><label class="switch"><input type="checkbox" data-act="pf-hol"${pf.skipHol?" checked":""}>${esc(t("skipHol"))}</label><div class="spacer"></div><button class="btn primary small" data-act="padd">${esc(t("addPattern"))}</button></div></div>
+   <div class="plist">${settings.patterns.length?settings.patterns.map(p=>`<div class="pitem"><div class="ptxt"><b>${esc(sName(p.site))}</b>　${p.wd.slice().sort().map(i=>esc(t("wd")[i])).join("・")}　${p.needed}${esc(t("people"))}<div class="pmeta">${esc(p.from.replace(/-/g,"/"))} 〜 ${esc(p.until.replace(/-/g,"/"))}${p.skipHol?"　"+esc(t("holTag")):""}</div></div><button class="xbtn" data-act="prm" data-id="${esc(p.id)}" aria-label="remove">×</button></div>`).join(""):`<p class="hint">${esc(t("noPattern"))}</p>`}</div>
+   <p class="hint">${esc(t("patternHint"))}</p></div>`;
+  h+=`<div class="admin-foot"><div class="tools"><b style="font-size:13px;color:var(--navy)">${esc(t("backup"))}</b><button class="btn small" data-act="dbexport"${busy?" disabled":""}>${esc(t("exportDb"))}</button><button class="btn small" data-act="dbimport"${busy?" disabled":""}>${esc(t("importDb"))}</button></div>
+   <div class="tools"><button class="btn small" data-act="pwchange">${esc(t("pwChange"))}</button><button class="btn danger small" data-act="clear"${busy?" disabled":""}>${esc(t("clear"))}</button></div></div>`;
+  return h+`</div></details>`;
+}
+
+function summary(sig){
+  const per={};MONTHS.forEach(k=>per[k]={});
+  Object.values(signups).forEach(s=>{if(!per[s.month])return;per[s.month][s.worker]=(per[s.month][s.worker]||0)+1});
+  // need/open per month
+  const mNeed={},mFill={};
+  MONTHS.forEach(k=>{
+    const {last}=monthGrid(k);let n=0,f=0;
+    for(let d=1;d<=last;d++){const dk=k+"-"+pad(d),nd=needs(dk),list=sig[dk]||[];
+      for(const s in nd){n+=nd[s];f+=Math.min(nd[s],list.filter(x=>x.site===s).length)}}
+    mNeed[k]=n;mFill[k]=f;
+  });
+  const ids=[...settings.workers.map(w=>w.id)];
+  Object.values(signups).forEach(s=>{if(!ids.includes(s.worker))ids.push(s.worker)});
+  let h=`<section class="sum"><h2>${esc(t("summary"))}</h2><p class="sub">${esc(t("sumSub"))}</p><div class="table-scroll"><table><thead><tr><th>${esc(t("workers"))}</th>`;
+  MONTHS.forEach(k=>{const [yy,mm]=k.split("-").map(Number);h+=`<th class="${k===month?"cur":""}">${esc(t("mshort")(yy,mm))}</th>`});
+  h+=`<th class="tot">${esc(t("total"))}</th></tr></thead><tbody>`;
+  ids.forEach(id=>{
+    const w=wById(id);let tot=0;
+    h+=`<tr class="${id===me?"mine":""}"><td><span class="namecell"><span class="dot" style="background:${esc(wColor(id))}"></span>${esc(wName(id))}${w&&w.max>0?`<span class="cap">≤${w.max}</span>`:""}</span></td>`;
+    MONTHS.forEach(k=>{const n=per[k][id]||0;tot+=n;const over=w&&w.max>0&&n>w.max;h+=`<td class="${k===month?"cur ":""}${n?"":"z "}${over?"over":""}">${n}</td>`});
+    h+=`<td class="tot">${tot}</td></tr>`;
+  });
+  let tn=0,to=0;
+  h+=`<tr class="meta"><td>${esc(t("need"))}</td>`;MONTHS.forEach(k=>{tn+=mNeed[k];h+=`<td class="${k===month?"cur":""}">${mNeed[k]||"—"}</td>`});h+=`<td class="tot">${tn}</td></tr>`;
+  h+=`<tr class="meta"><td>${esc(t("openRow"))}</td>`;MONTHS.forEach(k=>{const o=mNeed[k]-mFill[k];to+=o;h+=`<td class="${k===month?"cur ":""}${o>0?"open":""}">${mNeed[k]?o:"—"}</td>`});h+=`<td class="tot">${to}</td></tr>`;
+  h+=`</tbody></table></div>`;
+  // this month's dates per worker
+  const [yy,mm]=month.split("-").map(Number);
+  h+=`<div class="daylist"><div class="table-scroll"><table><thead><tr><th>${esc(t("month")(yy,mm))}</th><th>${esc(t("times"))}</th><th style="text-align:left">${esc(t("dayList"))}</th></tr></thead><tbody>`;
+  ids.forEach(id=>{
+    const ds=Object.values(signups).filter(s=>s.worker===id&&s.month===month).sort((a,b)=>a.date<b.date?-1:1);
+    const multi=settings.sites.length>1;
+    h+=`<tr class="${id===me?"mine":""}"><td><span class="namecell"><span class="dot" style="background:${esc(wColor(id))}"></span>${esc(wName(id))}</span></td><td class="n">${ds.length}</td><td class="dates">${ds.map(s=>esc(Number(s.date.slice(8))+"("+t("wd")[wdOf(s.date)]+")"+(multi?" "+sName(s.site):""))).join("、")||"—"}</td></tr>`;
+  });
+  return h+`</tbody></table></div></div></section>`;
+}
+
+/* ---------- export ---------- */
+let expSite="";
+function buildText(){
+  const sig=byDate();const {m,weeks}=monthGrid(month);
+  const sitesInMonth=new Set();weeks.flat().forEach(d=>{if(d)(sig[dkey(d)]||[]).forEach(x=>sitesInMonth.add(x.site))});
+  const one=expSite||(sitesInMonth.size<=1?[...sitesInMonth][0]||"":"");
+  let out=expSite?`${m}月（${sName(expSite)}）のスケジュールは以下の通りです。\n`:`${m}月のスケジュールは以下の通りです。\n`;
+  weeks.forEach((wk,wi)=>{
+    const lines=[];
+    wk.forEach(d=>{if(!d)return;const k=dkey(d);let list=sig[k]||[];if(expSite)list=list.filter(x=>x.site===expSite);if(!list.length)return;
+      const head=`${m}月${d.getDate()}日（${JWD[(d.getDay()+6)%7]}）`;
+      if(expSite||sitesInMonth.size<=1){lines.push(head+(list.length>=2?`（${list.length}名）`:"")+"："+list.map(x=>wName(x.worker)+"さん").join("、"))}
+      else{const parts=siteOrder(new Set(list.map(x=>x.site))).map(s=>{const l=list.filter(x=>x.site===s);return sName(s)+(l.length>=2?`（${l.length}名）`:"")+"："+l.map(x=>wName(x.worker)+"さん").join("、")});
+        lines.push(head+"　"+parts.join("／"))}
+    });
+    if(lines.length)out+="\n第"+(wi+1)+"週\n"+lines.join("\n")+"\n";
+  });
+  void one;return out.trim();
+}
+function exportText(){
+  const layer=document.getElementById("layer");
+  layer.innerHTML=`<div class="modal" data-act="closebg"><div class="sheet" role="dialog" aria-modal="true"><h3>${esc(t("copyText"))}</h3>
+   ${settings.sites.length>1?`<select class="field" data-act="expsite"><option value="">${esc(t("all"))}</option>${settings.sites.map(s=>`<option value="${esc(s.id)}"${s.id===expSite?" selected":""}>${esc(s.name)}</option>`).join("")}</select>`:""}
+   <textarea id="exp" readonly>${esc(buildText())}</textarea><div class="row"><button class="btn" data-act="close">${esc(t("close"))}</button><button class="btn primary" data-act="copy">${esc(t("copy"))}</button></div></div></div>`;
+}
+async function copyExp(){
+  const ta=document.getElementById("exp");if(!ta)return;
+  try{await navigator.clipboard.writeText(ta.value);toast(t("copied"))}
+  catch(e){ta.focus();ta.select();try{document.execCommand("copy");toast(t("copied"))}catch(_){}}
+}
+let toastTimer=null;
+function toast(msg){
+  let el=document.querySelector(".toast");
+  if(!el){el=document.createElement("div");el.className="toast";el.setAttribute("role","status");document.body.appendChild(el)}
+  el.textContent=msg;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.remove(),2600);
+}
+
+/* ---------- events ---------- */
+function setMonth(v){if(!okMonth(v)||v===month)return;month=v;if(location.hash.slice(1)!==v)location.hash=v;render()}
+window.addEventListener("hashchange",()=>setMonth(location.hash.slice(1)));
+
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act]");if(!el||el.tagName==="SELECT"||el.tagName==="INPUT")return;
+  const act=el.dataset.act;
+  if(act==="closebg"&&e.target!==el)return;
+  switch(act){
+    case "prev":setMonth(MONTHS[MONTHS.indexOf(month)-1]);break;
+    case "next":setMonth(MONTHS[MONTHS.indexOf(month)+1]);break;
+    case "unlockask":askUnlock();break;
+    case "lock":adminView=false;try{sessionStorage.removeItem("adminOk")}catch(_){}render();break;
+    case "pwchange":askChange();break;
+    case "pwok":pwSubmit();break;
+    case "print":askPrint();break;
+    case "printnow":doPrint();break;
+    case "printdl":printDownload();break;
+    case "dbexport":exportDb();break;
+    case "dbimport":askImport();break;
+    case "dorestore":doImport();break;
+    case "export":exportText();break;
+    case "copy":copyExp();break;
+    case "close":case "closebg":document.getElementById("layer").innerHTML="";break;
+    case "rm":removeSignup(el.dataset.id);break;
+    case "inc":{const k=el.dataset.date,s=el.dataset.site;setNeed(k,s,(needs(k)[s]||0)+1);break}
+    case "dec":{const k=el.dataset.date,s=el.dataset.site;setNeed(k,s,(needs(k)[s]||0)-1);break}
+    case "wadd":addWorker();break;
+    case "sadd":addSite();break;
+    case "wrm":if(confirm(t("confirmRmW"))){settings.workers=settings.workers.filter(w=>w.id!==el.dataset.id);render();saveSettings()}break;
+    case "srm":if(confirm(t("confirmRmS"))){const id=el.dataset.id;settings.sites=settings.sites.filter(s=>s.id!==id);settings.patterns=settings.patterns.filter(p=>p.site!==id);render();saveSettings()}break;
+    case "padd":addPattern();break;
+    case "prm":settings.patterns=settings.patterns.filter(p=>p.id!==el.dataset.id);render();saveSettings();break;
+    case "clear":clearMonth();break;
+  }
+});
+document.addEventListener("input",e=>{
+  const el=e.target,act=el.dataset&&el.dataset.act;if(!act)return;
+  if(act==="title")drafts.title=el.value;
+  else if(act==="wname")drafts["wn-"+el.dataset.id]=el.value;
+  else if(act==="sname")drafts["sn-"+el.dataset.id]=el.value;
+  else if(act==="newname")drafts.newname=el.value;
+  else if(act==="newsite")drafts.newsite=el.value;
+  else if(act==="pf-need")pf.needed=Math.max(1,Math.min(20,parseInt(el.value,10)||1));
+});
+document.addEventListener("change",e=>{
+  const el=e.target,act=el.dataset&&el.dataset.act;if(!act)return;
+  switch(act){
+    case "me":me=el.value;ls("me",me||null);render();break;
+    case "lang":lang=el.value;ls("lang",lang);document.documentElement.lang=lang;render();break;
+    case "impfile":{const f=el.files&&el.files[0];if(f)f.text().then(x=>{const ta=document.getElementById("imptext");if(ta)ta.value=x}).catch(()=>{});break}
+    case "month":setMonth(el.value);break;
+    case "myonly":myOnly=el.checked;render();break;
+    case "sitef":siteFilter=el.value;ls("site",siteFilter||null);render();break;
+    case "assign":if(el.value)addSignup(el.dataset.date,el.dataset.site,el.value);break;
+    case "addsite":if(el.value)setNeed(el.dataset.date,el.value,1);break;
+    case "title":delete drafts.title;settings.title=el.value.trim();render();saveSettings();break;
+    case "wname":{const id=el.dataset.id;delete drafts["wn-"+id];const w=wById(id),v=el.value.trim();if(w&&v&&v!==w.name){w.name=v;saveSettings()}render();break}
+    case "sname":{const id=el.dataset.id;delete drafts["sn-"+id];const s=sById(id),v=el.value.trim();if(s&&v&&v!==s.name){s.name=v;saveSettings()}render();break}
+    case "wmax":{const w=wById(el.dataset.id);if(w){const v=parseInt(el.value,10);w.max=v>0?Math.min(31,v):0;saveSettings();render()}break}
+    case "pf-site":pf.site=el.value;break;
+    case "pf-wd":{const i=+el.dataset.i;pf.wd=el.checked?[...new Set([...pf.wd,i])]:pf.wd.filter(x=>x!==i);break}
+    case "pf-from":pf.from=el.value||RANGE_FROM;break;
+    case "pf-until":pf.until=el.value||"2027-12-31";break;
+    case "pf-hol":pf.skipHol=el.checked;break;
+    case "expsite":expSite=el.value;document.getElementById("exp").value=buildText();break;
+  }
+});
+document.addEventListener("keydown",e=>{
+  const act=e.target.dataset&&e.target.dataset.act;
+  if(e.key==="Enter"&&act==="newname")addWorker();
+  if(e.key==="Enter"&&act==="newsite")addSite();
+  if(e.key==="Enter"&&e.target.closest&&e.target.closest(".pwform")){e.preventDefault();pwSubmit()}
+  if(e.key==="Escape")document.getElementById("layer").innerHTML="";
+});
+document.addEventListener("toggle",e=>{if(e.target.matches&&e.target.matches("details.admin"))ls("adminOpen",e.target.open?"1":"0")},true);
+
+function addWorker(){
+  const v=(drafts.newname||"").trim();if(!v)return;
+  const used=settings.workers.map(w=>w.color);
+  const color=PALETTE.find(c=>!used.includes(c))||PALETTE[settings.workers.length%PALETTE.length];
+  settings.workers=[...settings.workers,{id:newId("w"),name:v,color,max:0}];
+  drafts.newname="";render();saveSettings();
+}
+function addSite(){
+  const v=(drafts.newsite||"").trim();if(!v)return;
+  settings.sites=[...settings.sites,{id:newId("s"),name:v}];
+  drafts.newsite="";render();saveSettings();
+}
+function addPattern(){
+  if(!pf.site){toast(t("needSite"));return}
+  if(!pf.wd.length){toast(t("needWd"));return}
+  let from=pf.from,until=pf.until;if(from>until)[from,until]=[until,from];
+  settings.patterns=[...settings.patterns,{id:newId("p"),site:pf.site,wd:[...pf.wd].sort(),needed:pf.needed,from,until,skipHol:pf.skipHol}];
+  render();saveSettings();
+}
+async function clearMonth(){
+  if(!db||busy||!confirm(t("confirmClear")))return;busy=true;render();
+  for(const id of Object.keys(signups).filter(id=>signups[id].month===month))await removeSignup(id);
+  for(const k of Object.keys(days).filter(k=>days[k].month===month)){delete days[k];await enqueue("days/"+k,()=>db.doc("days/"+k).delete())}
+  busy=false;render();
+}
+
+/* ---------- admin password (UI lock; data rules already limit writes to editors) ---------- */
+let pwMode="";
+function sheet(inner){document.getElementById("layer").innerHTML=`<div class="modal" data-act="closebg"><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`}
+const closeSheet=()=>{document.getElementById("layer").innerHTML=""};
+async function sha(txt){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(txt));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function readLock(){try{const s=await db.doc("lock/admin").get();return s.exists?s.data():null}catch(e){return null}}
+async function askUnlock(){
+  const lock=await readLock();
+  if(!lock||!lock.hash){pwMode="create";
+    sheet(`<h3>${esc(t("pwNewTitle"))}</h3><p class="hint">${esc(t("pwNewHint"))}</p><div class="pwform"><label class="f">${esc(t("pwNew"))}<input class="field" type="password" id="pw1" autocomplete="new-password"></label><label class="f" style="margin-top:8px">${esc(t("pwNew2"))}<input class="field" type="password" id="pw2" autocomplete="new-password"></label></div><p class="err" id="pwerr"></p><div class="row"><button class="btn" data-act="close">${esc(t("cancel"))}</button><button class="btn primary" data-act="pwok">${esc(t("pwSet"))}</button></div>`);
+  }else{pwMode="unlock";
+    sheet(`<h3>${esc(t("pwTitle"))}</h3><div class="pwform"><input class="field" type="password" id="pw0" placeholder="${esc(t("pwPh"))}" autocomplete="current-password"></div><p class="err" id="pwerr"></p><div class="row"><button class="btn" data-act="close">${esc(t("cancel"))}</button><button class="btn primary" data-act="pwok">${esc(t("unlock"))}</button></div>`);
+  }
+  const f=document.querySelector("#layer input");if(f)f.focus();
+}
+function askChange(){pwMode="change";
+  sheet(`<h3>${esc(t("pwChange"))}</h3><div class="pwform"><label class="f">${esc(t("pwCurrent"))}<input class="field" type="password" id="pw0" autocomplete="current-password"></label><label class="f" style="margin-top:8px">${esc(t("pwNew"))}<input class="field" type="password" id="pw1" autocomplete="new-password"></label><label class="f" style="margin-top:8px">${esc(t("pwNew2"))}<input class="field" type="password" id="pw2" autocomplete="new-password"></label></div><p class="err" id="pwerr"></p><div class="row"><button class="btn" data-act="close">${esc(t("cancel"))}</button><button class="btn primary" data-act="pwok">${esc(t("pwSet"))}</button></div>`);
+  const f=document.getElementById("pw0");if(f)f.focus();
+}
+async function pwSubmit(){
+  const v=id=>{const e=document.getElementById(id);return e?e.value:""};
+  const err=m=>{const e=document.getElementById("pwerr");if(e)e.textContent=m};
+  const setNew=async()=>{const a=v("pw1"),b=v("pw2");
+    if(a.length<4){err(t("pwShort"));return false}if(a!==b){err(t("pwMismatch"));return false}
+    const salt=crypto.getRandomValues(new Uint32Array(4)).join("-");
+    try{await db.doc("lock/admin").set({salt,hash:await sha(salt+"|"+a)})}catch(e){err(t("saveErr"));return false}
+    return true};
+  if(pwMode==="create"){if(await setNew()){unlockOk()}}
+  else if(pwMode==="unlock"){const lock=await readLock();
+    if(lock&&lock.hash===await sha(lock.salt+"|"+v("pw0")))unlockOk();else err(t("pwWrong"))}
+  else if(pwMode==="change"){const lock=await readLock();
+    if(!lock||lock.hash!==await sha(lock.salt+"|"+v("pw0"))){err(t("pwWrong"));return}
+    if(await setNew()){closeSheet();toast(t("pwChanged"))}}
+}
+function unlockOk(){adminView=true;try{sessionStorage.setItem("adminOk","1")}catch(_){}closeSheet();render()}
+
+/* ---------- print (A4 landscape, one month per page) ---------- */
+const PRINT_CSS=`
+@page{size:A4 landscape;margin:8mm}
+.pp{width:281mm;height:193mm;display:flex;flex-direction:column;gap:3mm;font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;color:#1c2430;-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden;break-after:page}
+.pp-h{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:0.6mm solid #1f3a68;padding-bottom:1.5mm}
+.pp-t{font-size:15pt;font-weight:700;color:#1f3a68}
+.pp-m{font-size:15pt;font-weight:700}
+.pp-cal{width:100%;flex:1;border-collapse:collapse;table-layout:fixed}
+.pp-cal th{background:#eef0f4;color:#6b7482;font-size:8pt;font-weight:500;padding:1mm 1.5mm;text-align:left;border:0.2mm solid #d5d9e0}
+.pp-cal th.wkc,.pp-cal td.wkc{width:9mm;text-align:center;color:#6b7482;font-size:7pt;background:#f6f7f9}
+.pp-cal td{border:0.2mm solid #d5d9e0;vertical-align:top;padding:1mm 1.3mm;font-size:7.5pt;line-height:1.3}
+.pp-cal td.out{background:#f6f7f9}
+.pp-d{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.6mm}
+.pp-d b{font-size:9pt}
+.pp-d .hol{color:#b4483c;font-size:6.5pt}
+.pp-cal td.sun .pp-d b,.pp-cal td.hol .pp-d b{color:#b4483c}
+.pp-cal td.sat .pp-d b{color:#3f5f95}
+.pp-s{border-left:0.6mm solid #1f3a68;padding-left:1mm;margin-top:0.8mm}
+.pp-sn{font-weight:700;color:#1f3a68;font-size:7pt}
+.pp-sn span{font-weight:400;color:#6b7482}
+.pp-sn span.o{color:#b4483c}
+.pp-n{font-size:7.8pt}
+.pp-f{display:flex;flex-wrap:wrap;gap:1.5mm 5mm;align-items:center;font-size:8pt;border-top:0.2mm solid #d5d9e0;padding-top:1.5mm}
+.pp-f .lbl{color:#6b7482}
+.pp-f .w{display:inline-flex;align-items:center;gap:1.2mm}
+.pp-f .dot{width:2.6mm;height:2.6mm;border-radius:50%;display:inline-block}
+.pp-f .dt{margin-left:auto;color:#6b7482;font-size:7pt}`;
+function printHTML(){
+  const sig=byDate();const {y,m,weeks}=monthGrid(month);
+  const used=new Set();
+  weeks.flat().forEach(d=>{if(!d)return;const k=dkey(d);if(Object.keys(needs(k)).length||(sig[k]||[]).length)used.add((d.getDay()+6)%7)});
+  const cols=[0,1,2,3,4,5,6].filter(i=>i<5||used.has(i));
+  let h=`<div class="pp"><div class="pp-h"><div class="pp-t">${esc(settings.title||t("title"))}</div><div class="pp-m">${esc(t("month")(y,m))}</div></div><table class="pp-cal"><thead><tr><th class="wkc"></th>${cols.map(i=>`<th>${esc(t("wd")[i])}</th>`).join("")}</tr></thead><tbody>`;
+  weeks.forEach((wk,wi)=>{
+    if(cols.every(i=>!wk[i]))return;
+    h+=`<tr><td class="wkc">${wi+1}</td>`;
+    cols.forEach(i=>{const d=wk[i];
+      if(!d){h+=`<td class="out"></td>`;return}
+      const k=dkey(d),nd=needs(k),list=sig[k]||[],hol=HOL[k];
+      const sids=siteOrder(new Set([...Object.keys(nd),...list.map(x=>x.site)]));
+      h+=`<td class="${i===5?"sat":i===6?"sun":""}${hol?" hol":""}${sids.length?"":" out"}"><div class="pp-d"><b>${d.getDate()}</b>${hol?`<span class="hol">${esc(hol)}</span>`:""}</div>`;
+      sids.forEach(s=>{const n=nd[s]||0,here=list.filter(x=>x.site===s),open=Math.max(0,n-here.length);
+        h+=`<div class="pp-s"><div class="pp-sn">${esc(sName(s))} <span class="${open?"o":""}">${Math.min(here.length,n)}/${n}${open?" · "+esc(t("openN")(open)):""}</span></div><div class="pp-n">${here.map(x=>esc(wName(x.worker))).join("・")||"—"}</div></div>`});
+      h+=`</td>`});
+    h+=`</tr>`;
+  });
+  const cnt={};Object.values(signups).forEach(s=>{if(s.month===month)cnt[s.worker]=(cnt[s.worker]||0)+1});
+  const ids=[...settings.workers.map(w=>w.id),...Object.keys(cnt).filter(id=>!wById(id))];
+  const now=new Date();
+  h+=`</tbody></table><div class="pp-f"><span class="lbl">${esc(t("monthTotal"))}</span>${ids.map(id=>`<span class="w"><span class="dot" style="background:${esc(wColor(id))}"></span>${esc(wName(id))} <b>${cnt[id]||0}</b></span>`).join("")}<span class="dt">${esc(t("printedAt"))} ${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}</span></div></div>`;
+  return h;
+}
+function askPrint(){
+  sheet(`<h3>${esc(t("printTitle"))}</h3><p class="hint">${esc(t("printHint"))}</p><div class="row"><button class="btn" data-act="close">${esc(t("cancel"))}</button>${dl?`<button class="btn" data-act="printdl">${esc(t("printDl"))}</button>`:""}<button class="btn primary" data-act="printnow">${esc(t("printNow"))}</button></div>`);
+}
+function doPrint(){
+  document.getElementById("print").innerHTML=printHTML();closeSheet();
+  setTimeout(()=>{try{window.print()}catch(e){}},60);
+}
+async function printDownload(){
+  const doc=`<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><title>${esc((settings.title||t("title"))+" "+month)}</title><style>body{margin:0}${PRINT_CSS}@media screen{body{background:#eef0f4;padding:20px}.pp{background:#fff;margin:0 auto;padding:8mm;box-sizing:content-box;box-shadow:0 4px 20px rgba(0,0,0,.08)}}</style></head><body>${printHTML()}</body></html>`;
+  try{await dl.save({filename:`jadwal-${month}.html`,data:doc});closeSheet();toast(t("exported"))}catch(e){if(!e||e.code!=="declined")toast(t("saveErr"))}
+}
+
+/* ---------- backup ---------- */
+function snapshotData(){
+  return {app:"shift-calendar",version:1,exportedAt:new Date().toISOString(),
+    settings:{title:settings.title,sites:settings.sites,workers:settings.workers,patterns:settings.patterns},
+    days:JSON.parse(JSON.stringify(days)),signups:JSON.parse(JSON.stringify(signups))};
+}
+async function exportDb(){
+  const json=JSON.stringify(snapshotData(),null,2);
+  const d=new Date(),fn=`jadwal-backup-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`;
+  if(dl){try{await dl.save({filename:fn,data:json});toast(t("exported"));return}catch(e){if(e&&e.code==="declined")return}}
+  sheet(`<h3>${esc(t("exportDb"))}</h3><p class="err">${esc(t("dlFail"))}</p><textarea id="exp" readonly>${esc(json)}</textarea><div class="row"><button class="btn" data-act="close">${esc(t("close"))}</button><button class="btn primary" data-act="copy">${esc(t("copy"))}</button></div>`);
+}
+function askImport(){
+  sheet(`<h3>${esc(t("importTitle"))}</h3><p class="hint">${esc(t("importHint"))}</p><input type="file" accept=".json,application/json" data-act="impfile"><textarea id="imptext" placeholder="{ ... }" style="min-height:180px"></textarea><p class="err" id="imperr"></p><div class="row"><button class="btn" data-act="close">${esc(t("cancel"))}</button><button class="btn primary" data-act="dorestore">${esc(t("restore"))}</button></div>`);
+}
+async function doImport(){
+  const ta=document.getElementById("imptext"),er=document.getElementById("imperr");
+  let data;try{data=JSON.parse(ta.value)}catch(e){er.textContent=t("importBad");return}
+  if(!data||data.app!=="shift-calendar"||typeof data.settings!=="object"||typeof data.days!=="object"||typeof data.signups!=="object"){er.textContent=t("importBad");return}
+  if(!confirm(t("confirmImport")))return;
+  closeSheet();busy=true;render();
+  const st=data.settings;
+  const cleanSettings={title:String(st.title||""),sites:Array.isArray(st.sites)?st.sites:[],workers:Array.isArray(st.workers)?st.workers:[],patterns:Array.isArray(st.patterns)?st.patterns:[]};
+  const dayIds=Object.keys(data.days).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k));
+  const sigIds=Object.keys(data.signups).filter(k=>/^[\w-]+$/.test(k));
+  const delDays=Object.keys(days).filter(k=>!dayIds.includes(k));
+  const delSig=Object.keys(signups).filter(k=>!sigIds.includes(k));
+  const total=1+dayIds.length+sigIds.length+delDays.length+delSig.length;let done=0;
+  const step=()=>{done++;if(done%10===0||done===total)toast(t("importing")(done,total))};
+  try{
+    await db.doc("settings/main").set(cleanSettings);step();
+    for(const k of delDays){await db.doc("days/"+k).delete();step()}
+    for(const k of delSig){await db.doc("signups/"+k).delete();step()}
+    for(const k of dayIds){await db.doc("days/"+k).set(data.days[k]);step()}
+    for(const k of sigIds){await db.doc("signups/"+k).set(data.signups[k]);step()}
+    toast(t("imported"));
+  }catch(e){handleErr(e)}
+  busy=false;render();
+}
+
+/* ---------- data ---------- */
+let slowTimer=null;
+function onErr(e){if(e&&e.code==="revoked"){dbMissing=true;db=null;render()}}
+function markLoaded(k){loaded[k]=true;if(loaded.set&&loaded.days&&loaded.sign){dbReady=true;clearTimeout(slowTimer)}render()}
+const normList=(a,f)=>Array.isArray(a)?a.filter(x=>x&&typeof x==="object").map(f):[];
+async function init(){
+  render();
+  slowTimer=setTimeout(()=>{if(!dbReady){slow=true;render()}},10000);
+  const ps=document.createElement("style");ps.textContent="@media print{"+PRINT_CSS.replace("@page{size:A4 landscape;margin:8mm}","")+"}";document.head.appendChild(ps);
+  const pg=document.createElement("style");pg.textContent="@page{size:A4 landscape;margin:8mm}";document.head.appendChild(pg);
+  let dbNs=null,userNs=null;
+  try{[dbNs,userNs,dl]=await Promise.all([window.claude.use("db"),window.claude.use("user"),window.claude.use("downloads").catch(()=>null)])}catch(e){}
+  if(!dbNs){dbMissing=true;clearTimeout(slowTimer);render();return}
+  db=dbNs;
+  if(userNs){
+    try{isAdmin=await userNs.canEdit()}catch(e){isAdmin=false}
+    try{if(isAdmin&&sessionStorage.getItem("adminOk")==="1")adminView=true}catch(e){}
+    try{if((await userNs.can("data.write"))===false)canWrite=false}catch(e){}
+  }
+  db.doc("settings/main").onSnapshot(s=>{
+    const d=s.exists?s.data():{};
+    settings={title:typeof d.title==="string"?d.title:"",
+      sites:normList(d.sites,x=>({id:String(x.id),name:String(x.name||"")})),
+      workers:normList(d.workers,x=>({id:String(x.id),name:String(x.name||""),color:/^#[0-9a-f]{6}$/i.test(x.color)?x.color:"#7a8494",max:Number(x.max)||0})),
+      patterns:normList(d.patterns,x=>({id:String(x.id),site:String(x.site),wd:Array.isArray(x.wd)?x.wd.map(Number):[],needed:Number(x.needed)||0,from:String(x.from||RANGE_FROM),until:String(x.until||"2027-12-31"),skipHol:!!x.skipHol}))};
+    markLoaded("set")},onErr);
+  db.collection("days").onSnapshot(s=>{const o={};s.docs.forEach(d=>{const v=d.data();if(v&&v.ov&&typeof v.ov==="object")o[d.id]=v});days=o;markLoaded("days")},onErr);
+  db.collection("signups").onSnapshot(s=>{const o={};s.docs.forEach(d=>{const v=d.data();if(v&&v.date&&v.worker)o[d.id]=v});signups=o;markLoaded("sign")},onErr);
+}
+if(window.claude&&window.claude.use)init();else{dbMissing=true;render()}
+})();
+</script>
+</body>
+</html>
